@@ -56,11 +56,35 @@ app.event('app_mention', async ({ event, say, client }) => {
       // DON'T echo or respond publicly
       const authUrl = getAuthUrl(userId, channelId, event.ts);
       
-      // Send ephemeral message (only visible to this user)
+      // Send ephemeral message with button (only visible to this user)
       await client.chat.postEphemeral({
         channel: channelId,
         user: userId,
-        text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup that only you can see.\n\n✨ After you authenticate, I'll automatically respond to your message!`,
+        text: '👋 Hi! I need to link your Slack account with DummyCorp first.',
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: '👋 *Welcome to DummyCorp!*\n\nI need to link your Slack account with DummyCorp before I can help you.\n\n🔒 This is a secure one-time setup that only you can see.\n✨ After you authenticate, I\'ll automatically respond to your message!',
+            },
+          },
+          {
+            type: 'actions',
+            elements: [
+              {
+                type: 'button',
+                text: {
+                  type: 'plain_text',
+                  text: '🚀 Start Using Dummy!',
+                  emoji: true,
+                },
+                url: authUrl,
+                style: 'primary',
+              },
+            ],
+          },
+        ],
       });
       
       console.log(`⚠️ User ${userId} not authenticated - sent auth link`);
