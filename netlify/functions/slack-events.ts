@@ -13,56 +13,19 @@ const app = new App({
   processBeforeResponse: true,
 });
 
-// ==================== USER STORAGE ====================
-// WARNING: In-memory storage resets on every deployment/restart
-// In production, this MUST be a database (PostgreSQL, Redis, etc.)
-// For demo: Using a global Map that persists across function calls in same instance
-interface UserAuth {
-  slackUserId: string;
-  dummyCorpUserId: string;
-  accessToken: string;
-  linkedAt: string;
-}
-
-// Global storage (persists within same Lambda/Netlify instance)
-// @ts-ignore - Allow global variable
-if (!global.authenticatedUsers) {
-  // @ts-ignore
-  global.authenticatedUsers = new Map<string, UserAuth>();
-}
-
-// @ts-ignore
-const authenticatedUsers: Map<string, UserAuth> = global.authenticatedUsers;
+// ==================== SHARED STORAGE ====================
+import { isUserAuthenticated, getUserData, UserAuth } from './shared-storage';
 
 // ==================== HELPER FUNCTIONS ====================
-
-function isUserAuthenticated(slackUserId: string): boolean {
-  return authenticatedUsers.has(slackUserId);
-}
 
 function getAuthUrl(slackUserId: string): string {
   // Generate a state token for OAuth security
   const state = Buffer.from(JSON.stringify({ slackUserId, timestamp: Date.now() })).toString('base64');
   
   // This would be your DummyCorp OAuth server URL
-  // For now, we'll create a simple auth endpoint
   const oauthUrl = `${process.env.NETLIFY_URL || 'https://slackdummy.netlify.app'}/auth/login?state=${state}`;
   
   return oauthUrl;
-}
-
-function linkUser(slackUserId: string, dummyCorpUserId: string, accessToken: string) {
-  authenticatedUsers.set(slackUserId, {
-    slackUserId,
-    dummyCorpUserId,
-    accessToken,
-    linkedAt: new Date().toISOString(),
-  });
-  console.log(`✅ Linked user: ${slackUserId} → ${dummyCorpUserId}`);
-}
-
-function getUserData(slackUserId: string): UserAuth | undefined {
-  return authenticatedUsers.get(slackUserId);
 }
 
 // ==================== BOT WITH AUTHENTICATION ====================

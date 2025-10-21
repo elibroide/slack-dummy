@@ -4,23 +4,8 @@ import { WebClient } from '@slack/web-api';
 // Initialize Slack client
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
 
-// Shared storage with slack-events.ts
-// Uses global object to persist across function calls
-interface UserAuth {
-  slackUserId: string;
-  dummyCorpUserId: string;
-  accessToken: string;
-  linkedAt: string;
-}
-
-// @ts-ignore - Use same global storage as slack-events
-if (!global.authenticatedUsers) {
-  // @ts-ignore
-  global.authenticatedUsers = new Map<string, UserAuth>();
-}
-
-// @ts-ignore
-const authenticatedUsers: Map<string, UserAuth> = global.authenticatedUsers;
+// Shared storage module
+import { linkUser, listAuthenticatedUsers } from './shared-storage';
 
 // Helper to generate access token
 function generateAccessToken(username: string): string {
@@ -117,15 +102,11 @@ export const handler: Handler = async (event) => {
     // Generate access token
     const accessToken = generateAccessToken(username);
 
-    // Store the user mapping
-    authenticatedUsers.set(slackUserId, {
-      slackUserId,
-      dummyCorpUserId: username,
-      accessToken,
-      linkedAt: new Date().toISOString(),
-    });
-
-    console.log(`✅ User linked: ${slackUserId} → ${username}`);
+    // Store the user mapping using shared storage
+    linkUser(slackUserId, username, accessToken);
+    
+    // Log all authenticated users for debugging
+    console.log(`📊 All authenticated users: ${listAuthenticatedUsers().join(', ')}`);
 
     // Send success message to Slack
     await notifySlackUser(
