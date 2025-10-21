@@ -1,5 +1,11 @@
 import { Handler } from '@netlify/functions';
 import { App, AwsLambdaReceiver } from '@slack/bolt';
+import OpenAI from 'openai';
+
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Initialize the receiver for AWS Lambda (works with Netlify Functions)
 const awsLambdaReceiver = new AwsLambdaReceiver({
@@ -17,6 +23,45 @@ const app = new App({
 import { isUserAuthenticated, getUserData, UserAuth } from './shared-storage';
 
 // ==================== HELPER FUNCTIONS ====================
+
+async function callChatGPT(userPrompt: string, conversationHistory: string, authenticatedUser: string): Promise<string> {
+  try {
+    const systemPrompt = `<system>
+You are Dummy, an AI assistant integrated into Slack for DummyCorp. You help users by analyzing conversations, answering questions, summarizing discussions, and providing insights.
+
+Key capabilities:
+- Analyze conversation context and respond intelligently
+- Summarize discussions and extract action items
+- Answer questions based on the conversation history
+- Maintain a helpful, professional, and friendly tone
+
+The authenticated user is: ${authenticatedUser}
+</system>
+
+<conversation_history>
+${conversationHistory}
+</conversation_history>`;
+
+    console.log('🤖 Calling ChatGPT with prompt:', userPrompt);
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    });
+
+    const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+    console.log('✅ ChatGPT response received');
+    return response;
+  } catch (error) {
+    console.error('❌ ChatGPT error:', error);
+    return 'Sorry, I encountered an error while processing your request. Please try again.';
+  }
+}
 
 function getAuthUrl(slackUserId: string, channelId: string, messageTs: string): string {
   // Generate a state token for OAuth security with channel/message context
@@ -94,50 +139,59 @@ app.event('app_mention', async ({ event, say, client }) => {
     // User is authenticated - get their data
     const userData = await getUserData(userId);
     
-    // Get last 3 messages from the conversation
-    let conversationHistory = '';
+    // Get last 20 messages from the conversation for AI context
+    let formattedHistory = '';
     try {
       const history = await client.conversations.history({
         channel: channelId,
-        limit: 4, // Get 4 to include current message
+        limit: 21, // Get 21 to include current message
       });
 
       if (history.messages && history.messages.length > 0) {
-        // Reverse to get chronological order and exclude the current bot mention
-        const recentMessages = history.messages
-          .reverse()
-          .slice(-3); // Get last 3 messages
+        // Reverse to get chronological order
+        const recentMessages = history.messages.reverse().slice(0, 20);
 
-        // Format messages with user names (first name only) and keep mentions as <@U123>
+        // Format messages with full details for GPT
         const formattedMessages = await Promise.all(
           recentMessages.map(async (msg: any) => {
             if (msg.user) {
               try {
                 const userInfo = await client.users.info({ user: msg.user });
-                // Get first name only
                 const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
-                const firstName = fullName.split(' ')[0]; // Take first name only
-                // Keep the original text with <@U123> format - Slack will render them as mentions
+                const timestamp = new Date(parseFloat(msg.ts) * 1000).toISOString();
                 const msgText = msg.text || '';
-                return `${firstName}: ${msgText.trim()}`;
+                
+                // Format as XML for GPT
+                return `<message>
+  <user name="${fullName}" id="${msg.user}" timestamp="${timestamp}">
+${msgText}
+  </user>
+</message>`;
               } catch {
-                return `User: ${msg.text || ''}`;
+                return null;
               }
             }
             return null;
           })
         );
 
-        conversationHistory = formattedMessages.filter(m => m).join('\n');
+        formattedHistory = formattedMessages.filter(m => m).join('\n');
       }
     } catch (error) {
       console.error('Error fetching conversation history:', error);
-      conversationHistory = 'Could not fetch conversation history';
+      formattedHistory = 'Could not fetch conversation history';
     }
 
-    // Respond with authenticated user's name and conversation history
+    // Call ChatGPT with the user's prompt and conversation history
+    const gptResponse = await callChatGPT(
+      cleanText || 'Summarize this conversation',
+      formattedHistory,
+      userData?.dummyCorpUserId || 'Unknown'
+    );
+
+    // Respond with GPT's answer
     await say({
-      text: `✅ Authenticated as: *${userData?.dummyCorpUserId}*\n\n📝 *Last 3 messages:*\n${conversationHistory}`,
+      text: `🤖 *AI Response for ${userData?.dummyCorpUserId}:*\n\n${gptResponse}`,
       thread_ts: threadTs,
     });
 

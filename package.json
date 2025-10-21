@@ -15,7 +15,8 @@
   "dependencies": {
     "@netlify/blobs": "^10.1.0",
     "@netlify/functions": "^5.0.0",
-    "@slack/bolt": "^4.5.0"
+    "@slack/bolt": "^4.5.0",
+    "openai": "^6.6.0"
   },
   "devDependencies": {
     "@types/node": "^24.8.1",
