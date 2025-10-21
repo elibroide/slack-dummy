@@ -19,4 +19,9 @@
   to = "/.netlify/functions/auth-callback"
   status = 200
 
+[[redirects]]
+  from = "/slack/oauth/callback"
+  to = "/.netlify/functions/slack-oauth-callback"
+  status = 200
+
 
