@@ -92,16 +92,27 @@ function getAuthUrl(slackUserId: string, channelId: string, messageTs: string): 
 
 // ==================== BOT WITH AUTHENTICATION ====================
 
+// Track processed events to prevent duplicates (in-memory for this Lambda execution)
+const processedEvents = new Set<string>();
+
 // Handle @mentions in channels - With Authentication Check
 app.event('app_mention', async ({ event, say, client }) => {
   try {
+    // Deduplicate events using event timestamp + user + channel
+    const eventId = `${event.ts}_${event.user}_${event.channel}`;
+    if (processedEvents.has(eventId)) {
+      console.log(`⏭️ Skipping duplicate event: ${eventId}`);
+      return;
+    }
+    processedEvents.add(eventId);
+    
     const userId = event.user;
     const text = event.text;
     const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
     const threadTs = event.thread_ts || event.ts;
     const channelId = event.channel;
 
-    console.log(`📨 Received from ${userId}: "${cleanText}"`);
+    console.log(`📨 Received from ${userId}: "${cleanText}" [${eventId}]`);
     console.log(`🔑 Checking authentication for user ID: ${userId}`);
 
     // Check if user is authenticated
