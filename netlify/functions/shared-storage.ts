@@ -1,5 +1,4 @@
-// Netlify Blobs - Zero-configuration persistent storage
-// Works automatically with Netlify Functions - no setup needed!
+// Netlify Blobs with manual configuration
 import { getStore } from '@netlify/blobs';
 
 export interface UserAuth {
@@ -9,8 +8,23 @@ export interface UserAuth {
   linkedAt: string;
 }
 
-// Get the Netlify Blobs store (auto-configured)
-const getUserStore = () => getStore('slack-users');
+// Get the Netlify Blobs store with manual config
+const getUserStore = () => {
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+  
+  console.log(`🔧 Blobs config - siteID: ${siteID ? 'present' : 'missing'}, token: ${token ? 'present' : 'missing'}`);
+  
+  if (!siteID || !token) {
+    throw new Error('Missing Netlify Blobs configuration. Set NETLIFY_SITE_ID and NETLIFY_BLOBS_TOKEN in environment variables.');
+  }
+  
+  return getStore({
+    name: 'slack-users',
+    siteID,
+    token,
+  });
+};
 
 // Helper functions
 export async function isUserAuthenticated(slackUserId: string): Promise<boolean> {

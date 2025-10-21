@@ -1,39 +1,54 @@
 # Storage Setup for DummyCorp Bot
 
-Good news! **Netlify Blobs works automatically** - no setup required! 🎉
+The bot needs **Netlify Blobs** configured with environment variables.
 
-According to the [Netlify Blobs documentation](https://docs.netlify.com/build/data-and-storage/netlify-blobs/):
+## 🔧 Setup (2 minutes):
 
-> "We automatically handle provisioning, configuration, and access control for you. This integrated zero-configuration solution helps you focus on building business value in your project."
+### 1. Get your Site ID
+- Go to: https://app.netlify.com/sites/slackdummy/configuration/general
+- Under **Project information**, copy the **Project ID** (this is your Site ID)
+- Example: `a1b2c3d4-5678-90ab-cdef-1234567890ab`
 
-## ✅ What This Means
+### 2. Create a Personal Access Token
+- Go to: https://app.netlify.com/user/applications#personal-access-tokens
+- Click **New access token**
+- Name it: `Slack Dummy Blobs`
+- Click **Generate token**
+- **Copy the token immediately** (you won't see it again)
+- Example: `nfp_ABC123...xyz`
 
-The bot uses `@netlify/blobs` which is **already installed** and works out of the box with Netlify Functions.
+### 3. Add Environment Variables to Netlify
+- Go to: https://app.netlify.com/sites/slackdummy/configuration/env
+- Add these two variables:
 
-**No configuration needed:**
-- ✅ No API keys
-- ✅ No manual setup
-- ✅ No environment variables
-- ✅ Just deploy and it works!
+| Variable Name | Value |
+|---------------|-------|
+| `NETLIFY_SITE_ID` | Your Project ID from step 1 |
+| `NETLIFY_BLOBS_TOKEN` | Your token from step 2 |
 
-## 🧪 Testing
+- Click **Save**
+- Then click **Deploy** button to trigger a redeploy
 
-Just use the bot:
-1. **Add a user**: `/.netlify/functions/add-user`
-2. **Check storage**: `/.netlify/functions/whois`
-3. **Use in Slack**: `@Dummy yo`
+### 4. Wait for deployment (~1-2 minutes)
 
-Data persists across:
-- All function calls
-- All deployments
-- Forever (until you delete it)
+---
+
+## 🧪 Test:
+
+After deploy completes:
+
+1. **Add a user**: https://slackdummy.netlify.app/.netlify/functions/add-user
+2. **Check storage**: https://slackdummy.netlify.app/.netlify/functions/whois
+3. **Should see the user!** ✅
+
+---
 
 ## 📊 For Production
 
-For a real production app with Tipalti, you'd likely use:
+For Tipalti production, you'd use:
 - PostgreSQL (Supabase, Neon)
 - Redis (Upstash)
 - Your existing Tipalti database
 
-But for this demo, Netlify Blobs is perfect and requires zero setup!
+But for this demo, Netlify Blobs is perfect!
 
