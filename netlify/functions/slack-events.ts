@@ -18,6 +18,29 @@ import { isUserAuthenticated, getUserData, UserAuth } from './shared-storage';
 
 // ==================== HELPER FUNCTIONS ====================
 
+async function resolveUserMentions(text: string, client: any): Promise<string> {
+  // Find all user mentions in format <@U123ABC>
+  const mentionPattern = /<@([A-Z0-9]+)>/g;
+  let resolvedText = text;
+  const matches = [...text.matchAll(mentionPattern)];
+  
+  for (const match of matches) {
+    const userId = match[1];
+    try {
+      const userInfo = await client.users.info({ user: userId });
+      const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+      const firstName = fullName.split(' ')[0];
+      // Replace <@U123ABC> with @FirstName
+      resolvedText = resolvedText.replace(match[0], `@${firstName}`);
+    } catch (error) {
+      // If we can't resolve, just remove the mention
+      resolvedText = resolvedText.replace(match[0], '@user');
+    }
+  }
+  
+  return resolvedText;
+}
+
 function getAuthUrl(slackUserId: string, channelId: string, messageTs: string): string {
   // Generate a state token for OAuth security with channel/message context
   const state = Buffer.from(JSON.stringify({ 
@@ -108,7 +131,7 @@ app.event('app_mention', async ({ event, say, client }) => {
           .reverse()
           .slice(-3); // Get last 3 messages
 
-        // Format messages with user names (first name only)
+        // Format messages with user names (first name only) and resolve mentions
         const formattedMessages = await Promise.all(
           recentMessages.map(async (msg: any) => {
             if (msg.user) {
@@ -117,8 +140,9 @@ app.event('app_mention', async ({ event, say, client }) => {
                 // Get first name only
                 const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
                 const firstName = fullName.split(' ')[0]; // Take first name only
-                const msgText = msg.text?.replace(/<@[A-Z0-9]+>/g, '').trim() || '';
-                return `${firstName}: ${msgText}`;
+                // Resolve user mentions in the message text
+                const msgText = await resolveUserMentions(msg.text || '', client);
+                return `${firstName}: ${msgText.trim()}`;
               } catch {
                 return `User: ${msg.text || ''}`;
               }
