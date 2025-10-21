@@ -13,14 +13,76 @@ function generateAccessToken(username: string): string {
   return `token_${Buffer.from(`${username}_${Date.now()}`).toString('base64')}`;
 }
 
-// Helper to send Slack message
-async function notifySlackUser(userId: string, message: string) {
+// Helper to send Slack message with interactive dropdown
+async function notifySlackUser(userId: string, username: string) {
   try {
     await slackClient.chat.postMessage({
       channel: userId, // DM the user
-      text: message,
+      text: '✅ Account Linked!', // Fallback text
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `✅ *Account Linked!*\n\nYour Slack account has been successfully linked to DummyCorp user: *${username}*\n\nYou can now use the bot to access your data. Try mentioning me with a command!`
+          }
+        },
+        {
+          type: 'divider'
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '🍎 *Quick question:* What is your favorite food?'
+          },
+          accessory: {
+            type: 'static_select',
+            placeholder: {
+              type: 'plain_text',
+              text: 'Select your favorite',
+              emoji: true
+            },
+            options: [
+              {
+                text: {
+                  type: 'plain_text',
+                  text: '🍎 Apple',
+                  emoji: true
+                },
+                value: 'apple'
+              },
+              {
+                text: {
+                  type: 'plain_text',
+                  text: '🍕 Pizza',
+                  emoji: true
+                },
+                value: 'pizza'
+              },
+              {
+                text: {
+                  type: 'plain_text',
+                  text: '🍣 Sushi',
+                  emoji: true
+                },
+                value: 'sushi'
+              },
+              {
+                text: {
+                  type: 'plain_text',
+                  text: '🚫 Nothing',
+                  emoji: true
+                },
+                value: 'nothing'
+              }
+            ],
+            action_id: 'favorite_food_select'
+          }
+        }
+      ]
     });
-    console.log(`✅ Notified Slack user ${userId}: ${message}`);
+    console.log(`✅ Notified Slack user ${userId} with interactive dropdown`);
   } catch (error) {
     console.error('Error notifying Slack user:', error);
   }
@@ -118,11 +180,8 @@ export const handler: Handler = async (event) => {
     const users = await listAuthenticatedUsers();
     console.log(`📊 All authenticated users: ${users.join(', ')}`);
 
-    // Send success message to Slack
-    await notifySlackUser(
-      slackUserId,
-      `✅ *Account Linked!*\n\nYour Slack account has been successfully linked to DummyCorp user: *${username}*\n\nYou can now use the bot to access your data. Try mentioning me with a command!`
-    );
+    // Send success message to Slack with interactive dropdown
+    await notifySlackUser(slackUserId, username);
 
     // If we have channel and message context, respond to the original message
     if (channelId && messageTs) {

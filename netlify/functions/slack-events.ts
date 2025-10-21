@@ -247,6 +247,31 @@ ${msgText}
   }
 });
 
+// Handle interactive dropdown selection
+app.action('favorite_food_select', async ({ ack, body, client }) => {
+  // Acknowledge the action immediately
+  await ack();
+  
+  try {
+    const selectedValue = (body as any).actions[0].selected_option.value;
+    const userId = body.user.id;
+    
+    console.log(`User ${userId} selected favorite food: ${selectedValue}`);
+    
+    // Send a follow-up message
+    await client.chat.postMessage({
+      channel: userId,
+      text: `Great choice! 🎉 You selected: *${selectedValue}*`,
+    });
+    
+    // TODO: Store this preference in your database
+    // await updateUserPreference(userId, 'favorite_food', selectedValue);
+    
+  } catch (error) {
+    console.error('Error handling favorite food selection:', error);
+  }
+});
+
 // Handle direct messages (DMs) - Same logic as mentions
 app.message(async ({ message, say, client }) => {
   try {
