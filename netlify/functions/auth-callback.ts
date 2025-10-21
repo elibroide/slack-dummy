@@ -13,27 +13,6 @@ function generateAccessToken(username: string): string {
   return `token_${Buffer.from(`${username}_${Date.now()}`).toString('base64')}`;
 }
 
-// Helper function to resolve user mentions
-async function resolveUserMentions(text: string, client: WebClient): Promise<string> {
-  const mentionPattern = /<@([A-Z0-9]+)>/g;
-  let resolvedText = text;
-  const matches = [...text.matchAll(mentionPattern)];
-  
-  for (const match of matches) {
-    const userId = match[1];
-    try {
-      const userInfo = await client.users.info({ user: userId });
-      const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
-      const firstName = fullName.split(' ')[0];
-      resolvedText = resolvedText.replace(match[0], `@${firstName}`);
-    } catch (error) {
-      resolvedText = resolvedText.replace(match[0], '@user');
-    }
-  }
-  
-  return resolvedText;
-}
-
 // Helper to send Slack message
 async function notifySlackUser(userId: string, message: string) {
   try {
@@ -170,8 +149,8 @@ export const handler: Handler = async (event) => {
                     const userInfo = await slackClient.users.info({ user: msg.user });
                     const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
                     const firstName = fullName.split(' ')[0];
-                    // Resolve user mentions in the message text
-                    const msgText = await resolveUserMentions(msg.text || '', slackClient);
+                    // Keep the original text with <@U123> format - Slack will render them as mentions
+                    const msgText = msg.text || '';
                     return `${firstName}: ${msgText.trim()}`;
                   } catch {
                     return `User: ${msg.text || ''}`;
