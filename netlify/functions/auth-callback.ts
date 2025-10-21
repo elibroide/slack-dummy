@@ -102,11 +102,11 @@ export const handler: Handler = async (event) => {
     // Generate access token
     const accessToken = generateAccessToken(username);
 
-    // Store the user mapping using shared storage (now async)
-    await linkUser(slackUserId, username, accessToken);
+    // Store the user mapping using shared storage
+    linkUser(slackUserId, username, accessToken);
     
     // Log all authenticated users for debugging
-    const users = await listAuthenticatedUsers();
+    const users = listAuthenticatedUsers();
     console.log(`📊 All authenticated users: ${users.join(', ')}`);
 
     // Send success message to Slack
