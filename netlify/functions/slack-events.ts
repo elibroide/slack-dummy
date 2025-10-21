@@ -215,6 +215,12 @@ ${msgText}
       formattedHistory = 'Could not fetch conversation history';
     }
 
+    // Send immediate "processing" message
+    const processingMsg = await say({
+      text: `⏳ Processing your request...`,
+      thread_ts: threadTs,
+    });
+
     // Call ChatGPT with the user's prompt and conversation history
     const gptResponse = await callChatGPT(
       cleanText || 'Summarize this conversation',
@@ -222,10 +228,11 @@ ${msgText}
       userData?.dummyCorpUserId || 'Unknown'
     );
 
-    // Respond with GPT's answer
-    await say({
+    // Update the processing message with the actual response
+    await client.chat.update({
+      channel: channelId,
+      ts: processingMsg.ts!,
       text: `🤖 *AI Response for ${userData?.dummyCorpUserId}:*\n\n${gptResponse}`,
-      thread_ts: threadTs,
     });
 
   } catch (error) {
@@ -328,13 +335,21 @@ ${histMsg.text || ''}
       formattedHistory = 'Could not fetch conversation history';
     }
     
+    // Send immediate "processing" message
+    const processingMsg = await say(`⏳ Processing your request...`);
+    
     const gptResponse = await callChatGPT(
       text || 'Hello',
       formattedHistory,
       userData?.dummyCorpUserId || 'Unknown'
     );
     
-    await say(`🤖 *AI Response:*\n\n${gptResponse}`);
+    // Update the processing message with the actual response
+    await client.chat.update({
+      channel: channelId,
+      ts: processingMsg.ts!,
+      text: `🤖 *AI Response:*\n\n${gptResponse}`,
+    });
     
   } catch (error) {
     console.error('DM Error:', error);
