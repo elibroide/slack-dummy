@@ -40,9 +40,12 @@ app.event('app_mention', async ({ event, say, client }) => {
     const channelId = event.channel;
 
     console.log(`📨 Received from ${userId}: "${cleanText}"`);
+    console.log(`🔑 Checking authentication for user ID: ${userId}`);
 
     // Check if user is authenticated
     const isAuthenticated = await isUserAuthenticated(userId);
+    console.log(`🔐 Authentication result: ${isAuthenticated}`);
+    
     if (!isAuthenticated) {
       // User not authenticated - send PRIVATE OAuth link (ephemeral message)
       // DON'T echo or respond publicly
