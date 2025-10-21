@@ -71,12 +71,14 @@ app.event('app_mention', async ({ event, say, client }) => {
 
     // Check if user is authenticated
     if (!isUserAuthenticated(userId)) {
-      // User not authenticated - send OAuth link (don't echo anything)
+      // User not authenticated - send PRIVATE OAuth link (ephemeral message)
       const authUrl = getAuthUrl(userId);
       
-      await say({
-        text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup.`,
-        thread_ts: threadTs,
+      // Send ephemeral message (only visible to this user)
+      await client.chat.postEphemeral({
+        channel: channelId,
+        user: userId,
+        text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup that only you can see.`,
       });
       return;
     }
