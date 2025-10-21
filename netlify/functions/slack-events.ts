@@ -13,9 +13,10 @@ const app = new App({
   processBeforeResponse: true,
 });
 
-// ==================== IN-MEMORY USER STORAGE ====================
-// In production, this would be a database
-// For demo: stores user authentication state in memory
+// ==================== USER STORAGE ====================
+// WARNING: In-memory storage resets on every deployment/restart
+// In production, this MUST be a database (PostgreSQL, Redis, etc.)
+// For demo: Using a global Map that persists across function calls in same instance
 interface UserAuth {
   slackUserId: string;
   dummyCorpUserId: string;
@@ -23,7 +24,15 @@ interface UserAuth {
   linkedAt: string;
 }
 
-const authenticatedUsers = new Map<string, UserAuth>();
+// Global storage (persists within same Lambda/Netlify instance)
+// @ts-ignore - Allow global variable
+if (!global.authenticatedUsers) {
+  // @ts-ignore
+  global.authenticatedUsers = new Map<string, UserAuth>();
+}
+
+// @ts-ignore
+const authenticatedUsers: Map<string, UserAuth> = global.authenticatedUsers;
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -72,6 +81,7 @@ app.event('app_mention', async ({ event, say, client }) => {
     // Check if user is authenticated
     if (!isUserAuthenticated(userId)) {
       // User not authenticated - send PRIVATE OAuth link (ephemeral message)
+      // DON'T echo or respond publicly
       const authUrl = getAuthUrl(userId);
       
       // Send ephemeral message (only visible to this user)
@@ -80,7 +90,9 @@ app.event('app_mention', async ({ event, say, client }) => {
         user: userId,
         text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup that only you can see.`,
       });
-      return;
+      
+      console.log(`⚠️ User ${userId} not authenticated - sent auth link`);
+      return; // Don't echo anything publicly
     }
 
     // User is authenticated - get their data
@@ -100,15 +112,17 @@ app.event('app_mention', async ({ event, say, client }) => {
           .reverse()
           .slice(-3); // Get last 3 messages
 
-        // Format messages with user names
+        // Format messages with user names (first name only)
         const formattedMessages = await Promise.all(
           recentMessages.map(async (msg: any) => {
             if (msg.user) {
               try {
                 const userInfo = await client.users.info({ user: msg.user });
-                const userName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+                // Get first name only
+                const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+                const firstName = fullName.split(' ')[0]; // Take first name only
                 const msgText = msg.text?.replace(/<@[A-Z0-9]+>/g, '').trim() || '';
-                return `${userName}: ${msgText}`;
+                return `${firstName}: ${msgText}`;
               } catch {
                 return `User: ${msg.text || ''}`;
               }

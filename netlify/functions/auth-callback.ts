@@ -4,8 +4,8 @@ import { WebClient } from '@slack/web-api';
 // Initialize Slack client
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
 
-// In-memory storage (same as slack-events.ts)
-// In production, this would be a shared database
+// Shared storage with slack-events.ts
+// Uses global object to persist across function calls
 interface UserAuth {
   slackUserId: string;
   dummyCorpUserId: string;
@@ -13,7 +13,14 @@ interface UserAuth {
   linkedAt: string;
 }
 
-const authenticatedUsers = new Map<string, UserAuth>();
+// @ts-ignore - Use same global storage as slack-events
+if (!global.authenticatedUsers) {
+  // @ts-ignore
+  global.authenticatedUsers = new Map<string, UserAuth>();
+}
+
+// @ts-ignore
+const authenticatedUsers: Map<string, UserAuth> = global.authenticatedUsers;
 
 // Helper to generate access token
 function generateAccessToken(username: string): string {
