@@ -234,6 +234,113 @@ ${msgText}
   }
 });
 
+// Handle direct messages (DMs) - Same logic as mentions
+app.message(async ({ message, say, client }) => {
+  try {
+    // Only handle user messages in DMs (not bot messages, not channel messages)
+    if (message.subtype || message.channel_type !== 'im') return;
+    
+    const msg = message as any;
+    const userId = msg.user;
+    const text = msg.text || '';
+    const channelId = msg.channel;
+    
+    // Deduplicate events
+    const eventId = `${msg.ts}_${userId}_${channelId}`;
+    if (await isEventProcessed(eventId)) {
+      console.log(`⏭️ Skipping duplicate DM: ${eventId}`);
+      return;
+    }
+    await markEventProcessed(eventId);
+    
+    console.log(`💬 DM from ${userId}: "${text}"`);
+    
+    // Check authentication
+    const isAuthenticated = await isUserAuthenticated(userId);
+    
+    if (!isAuthenticated) {
+      const authUrl = getAuthUrl(userId, channelId, msg.ts);
+      await say({
+        text: '👋 Hi! I need to link your Slack account with DummyCorp first.',
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: '👋 *Welcome to DummyCorp!*\n\nI need to link your Slack account with DummyCorp before I can help you.\n\n🔒 This is a secure one-time setup.\n✨ After you authenticate, I\'ll automatically respond!',
+            },
+          },
+          {
+            type: 'actions',
+            elements: [
+              {
+                type: 'button',
+                text: {
+                  type: 'plain_text',
+                  text: '🚀 Start Using Dummy!',
+                  emoji: true,
+                },
+                url: authUrl,
+                style: 'primary',
+              },
+            ],
+          },
+        ],
+      });
+      return;
+    }
+    
+    // User authenticated - get conversation history and call AI
+    const userData = await getUserData(userId);
+    
+    let formattedHistory = '';
+    try {
+      const history = await client.conversations.history({
+        channel: channelId,
+        limit: 21,
+      });
+      
+      if (history.messages && history.messages.length > 0) {
+        const recentMessages = history.messages.reverse().slice(0, 20);
+        const formattedMessages = await Promise.all(
+          recentMessages.map(async (histMsg: any) => {
+            if (histMsg.user) {
+              try {
+                const userInfo = await client.users.info({ user: histMsg.user });
+                const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+                const timestamp = new Date(parseFloat(histMsg.ts) * 1000).toISOString();
+                return `<message>
+  <user name="${fullName}" id="${histMsg.user}" timestamp="${timestamp}">
+${histMsg.text || ''}
+  </user>
+</message>`;
+              } catch {
+                return null;
+              }
+            }
+            return null;
+          })
+        );
+        formattedHistory = formattedMessages.filter(m => m).join('\n');
+      }
+    } catch (error) {
+      console.error('Error fetching DM history:', error);
+      formattedHistory = 'Could not fetch conversation history';
+    }
+    
+    const gptResponse = await callChatGPT(
+      text || 'Hello',
+      formattedHistory,
+      userData?.dummyCorpUserId || 'Unknown'
+    );
+    
+    await say(`🤖 *AI Response:*\n\n${gptResponse}`);
+    
+  } catch (error) {
+    console.error('DM Error:', error);
+  }
+});
+
 // ==================== NETLIFY HANDLER ====================
 
 export const handler: Handler = async (event, context) => {
