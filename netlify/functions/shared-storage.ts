@@ -83,3 +83,42 @@ export async function listAuthenticatedUsers(): Promise<string[]> {
   }
 }
 
+// Event deduplication using Netlify Blobs
+const getEventStore = () => {
+  const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_TOKEN;
+  
+  if (!siteID || !token) {
+    throw new Error('Missing Netlify Blobs configuration');
+  }
+  
+  return getStore({
+    name: 'slack-events',
+    siteID,
+    token,
+  });
+};
+
+export async function isEventProcessed(eventId: string): Promise<boolean> {
+  try {
+    const store = getEventStore();
+    const exists = await store.get(eventId);
+    return exists !== null;
+  } catch (error) {
+    console.error('Error checking event:', error);
+    return false;
+  }
+}
+
+export async function markEventProcessed(eventId: string): Promise<void> {
+  try {
+    const store = getEventStore();
+    // Store event with 1 hour expiry
+    await store.set(eventId, 'processed', {
+      metadata: { processedAt: new Date().toISOString() }
+    });
+  } catch (error) {
+    console.error('Error marking event:', error);
+  }
+}
+

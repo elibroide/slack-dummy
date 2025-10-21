@@ -21,7 +21,7 @@ const app = new App({
 });
 
 // ==================== SHARED STORAGE ====================
-import { isUserAuthenticated, getUserData, UserAuth } from './shared-storage';
+import { isUserAuthenticated, getUserData, UserAuth, isEventProcessed, markEventProcessed } from './shared-storage';
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -35,6 +35,16 @@ Key capabilities:
 - Summarize discussions and extract action items
 - Answer questions based on the conversation history
 - Maintain a helpful, professional, and friendly tone
+
+IMPORTANT - Slack Formatting:
+- You are responding in Slack, so use Slack's markdown formatting
+- Use *bold* for emphasis (asterisks, not double asterisks)
+- Use _italic_ for emphasis (underscores)
+- Use \`code\` for code snippets
+- Use bullet points with • or -
+- Keep responses concise and well-formatted
+- Use line breaks for readability
+- You can mention users with <@USER_ID> format if needed
 
 The authenticated user is: ${authenticatedUser}
 </system>
@@ -92,19 +102,19 @@ function getAuthUrl(slackUserId: string, channelId: string, messageTs: string): 
 
 // ==================== BOT WITH AUTHENTICATION ====================
 
-// Track processed events to prevent duplicates (in-memory for this Lambda execution)
-const processedEvents = new Set<string>();
-
 // Handle @mentions in channels - With Authentication Check
 app.event('app_mention', async ({ event, say, client }) => {
   try {
-    // Deduplicate events using event timestamp + user + channel
+    // Deduplicate events using Netlify Blobs (persists across Lambda invocations)
     const eventId = `${event.ts}_${event.user}_${event.channel}`;
-    if (processedEvents.has(eventId)) {
+    
+    if (await isEventProcessed(eventId)) {
       console.log(`⏭️ Skipping duplicate event: ${eventId}`);
       return;
     }
-    processedEvents.add(eventId);
+    
+    // Mark event as processed immediately
+    await markEventProcessed(eventId);
     
     const userId = event.user;
     const text = event.text;
