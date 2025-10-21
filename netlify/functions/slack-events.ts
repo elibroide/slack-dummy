@@ -57,9 +57,20 @@ ${conversationHistory}
     const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
     console.log('✅ ChatGPT response received');
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ ChatGPT error:', error);
-    return 'Sorry, I encountered an error while processing your request. Please try again.';
+    
+    // Extract meaningful error message
+    let errorMessage = 'Unknown error';
+    if (error?.message) {
+      errorMessage = error.message;
+    } else if (error?.error?.message) {
+      errorMessage = error.error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    return `❌ *Unable to contact AI*\n\nReason: ${errorMessage}\n\nPlease check:\n- OpenAI API key is configured correctly\n- You have sufficient API credits\n- Network connectivity is working`;
   }
 }
 
