@@ -113,24 +113,6 @@ app.event('app_mention', async ({ event, say, client }) => {
   }
 });
 
-// Handle direct messages - Simple Echo
-app.message(async ({ message, say }) => {
-  // Only handle regular messages (not bot messages, no subtype)
-  if (message.subtype || message.thread_ts) return;
-  
-  try {
-    const text = (message as any).text;
-    
-    console.log(`💬 DM received: "${text}"`);
-
-    // Echo back the message
-    await say(text);
-
-  } catch (error) {
-    console.error('Error:', error);
-  }
-});
-
 // ==================== NETLIFY HANDLER ====================
 
 export const handler: Handler = async (event, context) => {
