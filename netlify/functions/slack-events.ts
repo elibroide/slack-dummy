@@ -42,7 +42,8 @@ app.event('app_mention', async ({ event, say, client }) => {
     console.log(`📨 Received from ${userId}: "${cleanText}"`);
 
     // Check if user is authenticated
-    if (!isUserAuthenticated(userId)) {
+    const isAuthenticated = await isUserAuthenticated(userId);
+    if (!isAuthenticated) {
       // User not authenticated - send PRIVATE OAuth link (ephemeral message)
       // DON'T echo or respond publicly
       const authUrl = getAuthUrl(userId);
@@ -59,7 +60,7 @@ app.event('app_mention', async ({ event, say, client }) => {
     }
 
     // User is authenticated - get their data
-    const userData = getUserData(userId);
+    const userData = await getUserData(userId);
     
     // Get last 3 messages from the conversation
     let conversationHistory = '';
