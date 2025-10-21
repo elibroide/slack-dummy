@@ -98,7 +98,6 @@ export const handler: Handler = async (event) => {
     // In production: Validate username/password against real database
     // For demo: Accept any non-empty credentials
     console.log(`🔐 Authenticating: ${username} for Slack user ${slackUserId}`);
-    console.log(`📝 Decoded state:`, decodedState);
 
     // Generate access token
     const accessToken = generateAccessToken(username);
