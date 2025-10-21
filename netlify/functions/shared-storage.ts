@@ -1,5 +1,5 @@
-// Netlify Blobs - Persistent storage across all functions and deployments
-import { getStore } from '@netlify/blobs';
+// Simple in-memory storage using global variable
+// For demo purposes - in production use a real database
 
 export interface UserAuth {
   slackUserId: string;
@@ -8,63 +8,49 @@ export interface UserAuth {
   linkedAt: string;
 }
 
-// Get the blob store
-const getUserStore = () => getStore('user-auth');
+// Declare global storage
+declare global {
+  var __slack_users: Record<string, UserAuth> | undefined;
+}
+
+// Initialize global storage
+if (!global.__slack_users) {
+  global.__slack_users = {};
+  console.log('🗄️ Initialized global user storage');
+}
 
 // Helper functions
 export async function isUserAuthenticated(slackUserId: string): Promise<boolean> {
-  try {
-    const store = getUserStore();
-    const data = await store.get(slackUserId);
-    const exists = data !== null;
-    console.log(`🔍 Check auth for ${slackUserId}: ${exists}`);
-    return exists;
-  } catch (error) {
-    console.error('Error checking auth:', error);
-    return false;
-  }
+  const exists = slackUserId in (global.__slack_users || {});
+  console.log(`🔍 Check auth for ${slackUserId}: ${exists} (Total: ${Object.keys(global.__slack_users || {}).length})`);
+  return exists;
 }
 
 export async function getUserData(slackUserId: string): Promise<UserAuth | undefined> {
-  try {
-    const store = getUserStore();
-    const data = await store.get(slackUserId, { type: 'json' });
-    console.log(`📖 Read user data for ${slackUserId}:`, data ? 'found' : 'not found');
-    return data as UserAuth | null ?? undefined;
-  } catch (error) {
-    console.error('Error getting user data:', error);
-    return undefined;
-  }
+  const user = global.__slack_users?.[slackUserId];
+  console.log(`📖 Read user data for ${slackUserId}:`, user ? 'found' : 'not found');
+  return user;
 }
 
 export async function linkUser(slackUserId: string, dummyCorpUserId: string, accessToken: string): Promise<void> {
-  try {
-    const store = getUserStore();
-    const userData: UserAuth = {
-      slackUserId,
-      dummyCorpUserId,
-      accessToken,
-      linkedAt: new Date().toISOString(),
-    };
-    
-    await store.setJSON(slackUserId, userData);
-    console.log(`✅ Linked user: ${slackUserId} → ${dummyCorpUserId}`);
-  } catch (error) {
-    console.error('Error linking user:', error);
-    throw error;
+  if (!global.__slack_users) {
+    global.__slack_users = {};
   }
+  
+  global.__slack_users[slackUserId] = {
+    slackUserId,
+    dummyCorpUserId,
+    accessToken,
+    linkedAt: new Date().toISOString(),
+  };
+  
+  console.log(`✅ Linked user: ${slackUserId} → ${dummyCorpUserId} (Total: ${Object.keys(global.__slack_users).length})`);
+  console.log(`📦 Current storage:`, JSON.stringify(global.__slack_users, null, 2));
 }
 
 export async function listAuthenticatedUsers(): Promise<string[]> {
-  try {
-    const store = getUserStore();
-    const { blobs } = await store.list();
-    const keys = blobs.map(b => b.key);
-    console.log(`📊 Total authenticated users: ${keys.length}`);
-    return keys;
-  } catch (error) {
-    console.error('Error listing users:', error);
-    return [];
-  }
+  const keys = Object.keys(global.__slack_users || {});
+  console.log(`📊 Total authenticated users: ${keys.length}`);
+  return keys;
 }
 
