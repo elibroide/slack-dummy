@@ -1,39 +1,39 @@
 # Storage Setup for DummyCorp Bot
 
-The bot needs persistent storage that works across Netlify Functions. Here's how to set it up:
+Good news! **Netlify Blobs works automatically** - no setup required! 🎉
 
-## Option 1: JSONBin.io (Recommended for Demo - 5 minutes)
+According to the [Netlify Blobs documentation](https://docs.netlify.com/build/data-and-storage/netlify-blobs/):
 
-1. **Go to https://jsonbin.io/**
-2. **Click "Sign Up" (free)** - use your email
-3. **Create a new bin:**
-   - Click "Create Bin"
-   - Name it: `slack-dummy-users`
-   - Content: `{}`
-   - Click "Create"
-4. **Copy your credentials:**
-   - Bin ID: Will look like `676abc123def456789`
-   - API Key: Click your profile → API Keys → Copy
+> "We automatically handle provisioning, configuration, and access control for you. This integrated zero-configuration solution helps you focus on building business value in your project."
 
-5. **Add to Netlify:**
-   - Go to https://app.netlify.com/sites/slackdummy/configuration/env
-   - Add environment variables:
-     - `JSONBIN_BIN_ID` = `your-bin-id`
-     - `JSONBIN_API_KEY` = `your-api-key`
-   - Click "Deploy" to restart
+## ✅ What This Means
 
-## Option 2: Enable Netlify Blobs (Simpler but needs approval)
+The bot uses `@netlify/blobs` which is **already installed** and works out of the box with Netlify Functions.
 
-1. Go to https://app.netlify.com/sites/slackdummy/integrations
-2. Find "Netlify Blobs" and click "Enable"
-3. Done! (The code already supports it)
+**No configuration needed:**
+- ✅ No API keys
+- ✅ No manual setup
+- ✅ No environment variables
+- ✅ Just deploy and it works!
 
-## Option 3: Use a Simple Database
+## 🧪 Testing
 
-For production, you'd use:
+Just use the bot:
+1. **Add a user**: `/.netlify/functions/add-user`
+2. **Check storage**: `/.netlify/functions/whois`
+3. **Use in Slack**: `@Dummy yo`
+
+Data persists across:
+- All function calls
+- All deployments
+- Forever (until you delete it)
+
+## 📊 For Production
+
+For a real production app with Tipalti, you'd likely use:
 - PostgreSQL (Supabase, Neon)
 - Redis (Upstash)
-- DynamoDB
+- Your existing Tipalti database
 
-But for this demo, JSONBin is perfect!
+But for this demo, Netlify Blobs is perfect and requires zero setup!
 
