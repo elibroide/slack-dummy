@@ -65,12 +65,13 @@ app.event('app_mention', async ({ event, say, client }) => {
     const text = event.text;
     const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
     const threadTs = event.thread_ts || event.ts;
+    const channelId = event.channel;
 
     console.log(`📨 Received from ${userId}: "${cleanText}"`);
 
     // Check if user is authenticated
     if (!isUserAuthenticated(userId)) {
-      // User not authenticated - send OAuth link
+      // User not authenticated - send OAuth link (don't echo anything)
       const authUrl = getAuthUrl(userId);
       
       await say({
@@ -83,9 +84,47 @@ app.event('app_mention', async ({ event, say, client }) => {
     // User is authenticated - get their data
     const userData = getUserData(userId);
     
-    // Echo back with personalized message
+    // Get last 3 messages from the conversation
+    let conversationHistory = '';
+    try {
+      const history = await client.conversations.history({
+        channel: channelId,
+        limit: 4, // Get 4 to include current message
+      });
+
+      if (history.messages && history.messages.length > 0) {
+        // Reverse to get chronological order and exclude the current bot mention
+        const recentMessages = history.messages
+          .reverse()
+          .slice(-3); // Get last 3 messages
+
+        // Format messages with user names
+        const formattedMessages = await Promise.all(
+          recentMessages.map(async (msg: any) => {
+            if (msg.user) {
+              try {
+                const userInfo = await client.users.info({ user: msg.user });
+                const userName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+                const msgText = msg.text?.replace(/<@[A-Z0-9]+>/g, '').trim() || '';
+                return `${userName}: ${msgText}`;
+              } catch {
+                return `User: ${msg.text || ''}`;
+              }
+            }
+            return null;
+          })
+        );
+
+        conversationHistory = formattedMessages.filter(m => m).join('\n');
+      }
+    } catch (error) {
+      console.error('Error fetching conversation history:', error);
+      conversationHistory = 'Could not fetch conversation history';
+    }
+
+    // Respond with authenticated user's name and conversation history
     await say({
-      text: `✅ Authenticated as: ${userData?.dummyCorpUserId}\n\nYou said: "${cleanText}"`,
+      text: `✅ Authenticated as: *${userData?.dummyCorpUserId}*\n\n📝 *Last 3 messages:*\n${conversationHistory}`,
       thread_ts: threadTs,
     });
 
