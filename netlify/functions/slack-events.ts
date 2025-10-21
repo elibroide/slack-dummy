@@ -18,9 +18,14 @@ import { isUserAuthenticated, getUserData, UserAuth } from './shared-storage';
 
 // ==================== HELPER FUNCTIONS ====================
 
-function getAuthUrl(slackUserId: string): string {
-  // Generate a state token for OAuth security
-  const state = Buffer.from(JSON.stringify({ slackUserId, timestamp: Date.now() })).toString('base64');
+function getAuthUrl(slackUserId: string, channelId: string, messageTs: string): string {
+  // Generate a state token for OAuth security with channel/message context
+  const state = Buffer.from(JSON.stringify({ 
+    slackUserId, 
+    channelId, 
+    messageTs,
+    timestamp: Date.now() 
+  })).toString('base64');
   
   // This would be your DummyCorp OAuth server URL
   const oauthUrl = `${process.env.NETLIFY_URL || 'https://slackdummy.netlify.app'}/auth/login?state=${state}`;
@@ -49,13 +54,13 @@ app.event('app_mention', async ({ event, say, client }) => {
     if (!isAuthenticated) {
       // User not authenticated - send PRIVATE OAuth link (ephemeral message)
       // DON'T echo or respond publicly
-      const authUrl = getAuthUrl(userId);
+      const authUrl = getAuthUrl(userId, channelId, event.ts);
       
       // Send ephemeral message (only visible to this user)
       await client.chat.postEphemeral({
         channel: channelId,
         user: userId,
-        text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup that only you can see.`,
+        text: `👋 Hi! I need to link your Slack account with DummyCorp first.\n\nClick here to authenticate: ${authUrl}\n\n🔒 This is a secure one-time setup that only you can see.\n\n✨ After you authenticate, I'll automatically respond to your message!`,
       });
       
       console.log(`⚠️ User ${userId} not authenticated - sent auth link`);

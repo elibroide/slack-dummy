@@ -63,13 +63,20 @@ export const handler: Handler = async (event) => {
 
     // Decode state to get Slack user ID
     let slackUserId: string;
+    let channelId: string | undefined;
+    let messageTs: string | undefined;
+    
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
       slackUserId = decoded.slackUserId;
+      channelId = decoded.channelId;
+      messageTs = decoded.messageTs;
       
       if (!slackUserId) {
         throw new Error('No Slack user ID in state');
       }
+      
+      console.log(`📝 Decoded state - user: ${slackUserId}, channel: ${channelId}, message: ${messageTs}`);
     } catch (error) {
       console.error('Error decoding state:', error);
       return {
@@ -116,6 +123,60 @@ export const handler: Handler = async (event) => {
       slackUserId,
       `✅ *Account Linked!*\n\nYour Slack account has been successfully linked to DummyCorp user: *${username}*\n\nYou can now use the bot to access your data. Try mentioning me with a command!`
     );
+
+    // If we have channel and message context, respond to the original message
+    if (channelId && messageTs) {
+      try {
+        console.log(`📨 Responding to original message in channel ${channelId}`);
+        
+        // Get last 3 messages from the conversation
+        let conversationHistory = '';
+        try {
+          const history = await slackClient.conversations.history({
+            channel: channelId,
+            limit: 4,
+          });
+
+          if (history.messages && history.messages.length > 0) {
+            const recentMessages = history.messages
+              .reverse()
+              .slice(-3);
+
+            const formattedMessages = await Promise.all(
+              recentMessages.map(async (msg: any) => {
+                if (msg.user) {
+                  try {
+                    const userInfo = await slackClient.users.info({ user: msg.user });
+                    const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
+                    const firstName = fullName.split(' ')[0];
+                    const msgText = msg.text?.replace(/<@[A-Z0-9]+>/g, '').trim() || '';
+                    return `${firstName}: ${msgText}`;
+                  } catch {
+                    return `User: ${msg.text || ''}`;
+                  }
+                }
+                return null;
+              })
+            );
+            conversationHistory = formattedMessages.filter(m => m).join('\n');
+          }
+        } catch (error) {
+          console.error('Error fetching conversation history:', error);
+          conversationHistory = 'Could not fetch conversation history';
+        }
+
+        // Post response to the original message
+        await slackClient.chat.postMessage({
+          channel: channelId,
+          thread_ts: messageTs,
+          text: `✅ Authenticated as: *${username}*\n\n📝 *Last 3 messages:*\n${conversationHistory}`,
+        });
+        
+        console.log(`✅ Posted response to original message`);
+      } catch (error) {
+        console.error('Error responding to original message:', error);
+      }
+    }
 
     // Show success page
     return {
