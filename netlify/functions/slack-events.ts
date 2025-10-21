@@ -2,9 +2,10 @@ import { Handler } from '@netlify/functions';
 import { App, AwsLambdaReceiver } from '@slack/bolt';
 import OpenAI from 'openai';
 
-// Initialize OpenAI
+// Initialize OpenAI with no retries for faster feedback
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 0, // Disable automatic retries
 });
 
 // Initialize the receiver for AWS Lambda (works with Netlify Functions)
