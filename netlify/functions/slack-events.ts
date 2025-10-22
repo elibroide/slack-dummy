@@ -392,9 +392,7 @@ app.message(async ({ message, say, client }) => {
       formattedHistory = '';
     }
     
-    // Send immediate "processing" message with typing indicator
-    const processingMsg = await say(`💭 _Thinking..._`);
-    
+    // Get AI response
     const gptResponse = await callChatGPT(
       text || 'Hello',
       formattedHistory,
@@ -402,12 +400,8 @@ app.message(async ({ message, say, client }) => {
       true // DM mode = conversational
     );
     
-    // Update the processing message with the actual response (cleaner, no prefix)
-    await client.chat.update({
-      channel: channelId,
-      ts: processingMsg.ts!,
-      text: gptResponse,
-    });
+    // Just post the response (don't update/delete anything)
+    await say(gptResponse);
 
   } catch (error) {
     console.error('DM Error:', error);
