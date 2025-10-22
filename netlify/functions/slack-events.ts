@@ -400,8 +400,11 @@ app.message(async ({ message, say, client }) => {
       true // DM mode = conversational
     );
     
-    // Just post the response (don't update/delete anything)
-    await say(gptResponse);
+    // Post response as a NEW message (using client.chat.postMessage to ensure it doesn't replace anything)
+    await client.chat.postMessage({
+      channel: channelId,
+      text: gptResponse,
+    });
 
   } catch (error) {
     console.error('DM Error:', error);
