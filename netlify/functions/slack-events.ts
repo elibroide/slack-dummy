@@ -25,10 +25,28 @@ import { isUserAuthenticated, getUserData, UserAuth, isEventProcessed, markEvent
 
 // ==================== HELPER FUNCTIONS ====================
 
-async function callChatGPT(userPrompt: string, conversationHistory: string, authenticatedUser: string): Promise<string> {
+async function callChatGPT(userPrompt: string, conversationHistory: string, authenticatedUser: string, isDM: boolean = false): Promise<string> {
   try {
-    const systemPrompt = `<system>
-You are Dummy, an AI assistant integrated into Slack for DummyCorp. You help users by analyzing conversations, answering questions, summarizing discussions, and providing insights.
+    const systemPrompt = isDM 
+      ? `You are Dummy, a friendly AI assistant for DummyCorp integrated into Slack.
+
+IMPORTANT - Conversation Style:
+- You're having a natural, ongoing conversation with ${authenticatedUser}
+- Remember the context of the entire conversation
+- Be conversational, helpful, and engaging
+- You can be playful and show personality
+- Keep responses concise but informative
+- Use natural language, not formal reports
+
+IMPORTANT - Slack Formatting:
+- Use *bold* for emphasis (single asterisks)
+- Use _italic_ for emphasis (underscores)
+- Use \`code\` for code snippets
+- Keep responses readable and well-formatted
+- Use emojis when appropriate to add personality
+
+You have access to the full conversation history above. Use it to provide contextual responses.`
+      : `You are Dummy, an AI assistant integrated into Slack for DummyCorp. You help users by analyzing conversations, answering questions, summarizing discussions, and providing insights.
 
 IMPORTANT - Your Identity:
 - Your name is "Dummy" (users refer to you as @Dummy in Slack)
@@ -52,23 +70,19 @@ IMPORTANT - Slack Formatting:
 - Use line breaks for readability
 - You can mention users with <@USER_ID> format if needed
 
-The authenticated user is: ${authenticatedUser}
-</system>
+The authenticated user is: ${authenticatedUser}`;
 
-<conversation_history>
-${conversationHistory}
-</conversation_history>`;
-
-    console.log('🤖 Calling ChatGPT with prompt:', userPrompt);
+    console.log(`🤖 Calling ChatGPT (${isDM ? 'DM' : 'Channel'} mode):`, userPrompt);
     
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
+        ...(conversationHistory ? [{ role: 'system', content: `Previous conversation:\n${conversationHistory}` }] : []),
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 500,
+      temperature: isDM ? 0.8 : 0.7,
+      max_tokens: isDM ? 800 : 500,
     });
 
     const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
@@ -231,7 +245,8 @@ ${msgText}
     const gptResponse = await callChatGPT(
       cleanText || 'Summarize this conversation',
       formattedHistory,
-      userData?.dummyCorpUserId || 'Unknown'
+      userData?.dummyCorpUserId || 'Unknown',
+      false // Channel mode = analytical
     );
 
     // Update the processing message with the actual response
@@ -328,60 +343,72 @@ app.message(async ({ message, say, client }) => {
       return;
     }
     
-    // User authenticated - get conversation history and call AI
+    // User authenticated - get full DM conversation history
     const userData = await getUserData(userId);
     
     let formattedHistory = '';
     try {
+      // Fetch up to 100 messages for better context in DMs
       const history = await client.conversations.history({
         channel: channelId,
-        limit: 21,
+        limit: 100,
       });
       
       if (history.messages && history.messages.length > 0) {
-        const recentMessages = history.messages.reverse().slice(0, 20);
-        const formattedMessages = await Promise.all(
-          recentMessages.map(async (histMsg: any) => {
-            if (histMsg.user) {
-              try {
-                const userInfo = await client.users.info({ user: histMsg.user });
-                const fullName = userInfo.user?.real_name || userInfo.user?.name || 'Unknown';
-                const timestamp = new Date(parseFloat(histMsg.ts) * 1000).toISOString();
-                return `<message>
-  <user name="${fullName}" id="${histMsg.user}" timestamp="${timestamp}">
-${histMsg.text || ''}
-  </user>
-</message>`;
-              } catch {
-                return null;
-              }
-            }
-            return null;
-          })
-        );
-        formattedHistory = formattedMessages.filter(m => m).join('\n');
+        // Reverse to get chronological order, exclude the current message
+        const messages = history.messages.reverse();
+        const conversationMessages = [];
+        
+        for (const histMsg of messages) {
+          if (histMsg.ts === msg.ts) continue; // Skip current message
+          
+          // Handle user messages
+          if (histMsg.user && histMsg.text) {
+            conversationMessages.push({
+              role: 'user',
+              content: histMsg.text,
+              name: userData?.dummyCorpUserId || 'User'
+            });
+          }
+          // Handle bot messages (Dummy's previous responses)
+          else if (histMsg.bot_id && histMsg.text) {
+            conversationMessages.push({
+              role: 'assistant',
+              content: histMsg.text.replace(/^🤖 \*AI Response:?\*\n\n/, '').trim()
+            });
+          }
+        }
+        
+        // Format as a readable conversation
+        formattedHistory = conversationMessages.map((msg, idx) => {
+          const speaker = msg.role === 'user' ? msg.name : 'Dummy';
+          return `${speaker}: ${msg.content}`;
+        }).join('\n\n');
+        
+        console.log(`📜 Loaded ${conversationMessages.length} messages from DM history`);
       }
     } catch (error) {
       console.error('Error fetching DM history:', error);
-      formattedHistory = 'Could not fetch conversation history';
+      formattedHistory = '';
     }
     
-    // Send immediate "processing" message
-    const processingMsg = await say(`⏳ Processing your request...`);
+    // Send immediate "processing" message with typing indicator
+    const processingMsg = await say(`💭 _Thinking..._`);
     
     const gptResponse = await callChatGPT(
       text || 'Hello',
       formattedHistory,
-      userData?.dummyCorpUserId || 'Unknown'
+      userData?.dummyCorpUserId || 'Unknown',
+      true // DM mode = conversational
     );
     
-    // Update the processing message with the actual response
+    // Update the processing message with the actual response (cleaner, no prefix)
     await client.chat.update({
       channel: channelId,
       ts: processingMsg.ts!,
-      text: `🤖 *AI Response:*\n\n${gptResponse}`,
+      text: gptResponse,
     });
-    
+
   } catch (error) {
     console.error('DM Error:', error);
   }
