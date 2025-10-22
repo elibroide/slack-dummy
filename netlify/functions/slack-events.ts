@@ -396,8 +396,11 @@ app.message(async ({ message, say, client }) => {
       true // DM mode = conversational
     );
     
-    // Post response directly to conversation
-    await say(gptResponse);
+    // Post response directly to conversation using client (not say)
+    await client.chat.postMessage({
+      channel: channelId,
+      text: gptResponse,
+    });
 
   } catch (error) {
     console.error('DM Error:', error);
