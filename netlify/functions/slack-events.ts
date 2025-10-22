@@ -139,7 +139,6 @@ app.event('app_mention', async ({ event, say, client }) => {
     const userId = event.user;
     const text = event.text;
     const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
-    const threadTs = event.thread_ts || event.ts;
     const channelId = event.channel;
 
     console.log(`📨 Received from ${userId}: "${cleanText}" [${eventId}]`);
@@ -235,11 +234,8 @@ ${msgText}
       formattedHistory = 'Could not fetch conversation history';
     }
 
-    // Send immediate "processing" message
-    const processingMsg = await say({
-      text: `⏳ Processing your request...`,
-      thread_ts: threadTs,
-    });
+    // Send immediate "processing" message (in main conversation, not thread)
+    const processingMsg = await say(`⏳ Processing your request...`);
 
     // Call ChatGPT with the user's prompt and conversation history
     const gptResponse = await callChatGPT(
@@ -343,27 +339,65 @@ app.message(async ({ message, say, client }) => {
       return;
     }
     
-    // User authenticated
+    // User authenticated - get full DM conversation history
     const userData = await getUserData(userId);
     
-    console.log(`📤 Preparing response for DM channel: ${channelId}, user: ${userId}`);
+    let formattedHistory = '';
+    try {
+      // Fetch up to 100 messages for better context in DMs
+      const history = await client.conversations.history({
+        channel: channelId,
+        limit: 100,
+      });
+      
+      if (history.messages && history.messages.length > 0) {
+        // Reverse to get chronological order, exclude the current message
+        const messages = history.messages.reverse();
+        const conversationMessages = [];
+        
+        for (const histMsg of messages) {
+          if (histMsg.ts === msg.ts) continue; // Skip current message
+          
+          // Handle user messages
+          if (histMsg.user && histMsg.text) {
+            conversationMessages.push({
+              role: 'user',
+              content: histMsg.text,
+              name: userData?.dummyCorpUserId || 'User'
+            });
+          }
+          // Handle bot messages (Dummy's previous responses)
+          else if (histMsg.bot_id && histMsg.text) {
+            conversationMessages.push({
+              role: 'assistant',
+              content: histMsg.text.replace(/^🤖 \*AI Response:?\*\n\n/, '').trim()
+            });
+          }
+        }
+        
+        // Format as a readable conversation
+        formattedHistory = conversationMessages.map((msg, idx) => {
+          const speaker = msg.role === 'user' ? msg.name : 'Dummy';
+          return `${speaker}: ${msg.content}`;
+        }).join('\n\n');
+        
+        console.log(`📜 Loaded ${conversationMessages.length} messages from DM history`);
+      }
+    } catch (error) {
+      console.error('Error fetching DM history:', error);
+      formattedHistory = '';
+    }
     
-    // For now, let's test without fetching history to isolate the issue
     // Get AI response
     const gptResponse = await callChatGPT(
       text || 'Hello',
-      '', // No history for now - testing
+      formattedHistory,
       userData?.dummyCorpUserId || 'Unknown',
       true // DM mode = conversational
     );
     
-    console.log(`✅ Got AI response, length: ${gptResponse.length}`);
-    console.log(`📨 Sending to channel: ${channelId}`);
-    
-    // Use say() which should automatically use the right channel
+    // Post response directly to conversation
     await say(gptResponse);
-    
-    console.log(`✅ Message sent successfully`);
 
   } catch (error) {
     console.error('DM Error:', error);
